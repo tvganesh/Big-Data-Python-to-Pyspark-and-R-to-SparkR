@@ -1,0 +1,267 @@
+
+---
+title: "Big Data-1: Move into the big league:Graduate from R to SparkR"
+output:
+  html_document:
+    toc: true
+---
+
+This post is a continuation of my earlier post [Big Data-1: Move into the big league:Graduate from Python to Pyspark](https://gigadom.in/2018/10/08/big-data-1-move-into-the-big-leaguegraduate-from-python-to-pyspark/). While the earlier post discussed parallel constructs in Python and Pyspark, this post elaborates similar and key constructs in R and SparkR. While this post just focuses on the programming part of R and SparkR it is essential to understand and fully grasp the concept of Spark, RDD and how data is distributed across the clusters. This post like the earlier post shows how if you already have a good handle of R, you can easily graduate to Big Data with SparkR
+##1a. Read CSV- R
+Note: To upload the CSV to databricks see the video [Upload Flat File to Databricks Table](https://www.youtube.com/watch?v=H5LxjaJgpSk)
+
+```{r}
+# Read CSV file
+tendulkar= read.csv("/dbfs/FileStore/tables/tendulkar.csv",stringsAsFactors = FALSE,na.strings=c(NA,"-"))
+#Check the dimensions of the dataframe
+dim(tendulkar)
+```
+
+## 1b. Read CSV - SparkR
+
+```{r}
+# Load the SparkR library
+library(SparkR)
+
+# Initiate a SparkR session
+sparkR.session()
+tendulkar1 <- read.df("/FileStore/tables/tendulkar.csv", 
+				header = "true", 
+				delimiter = ",", 
+				source = "csv", 
+				inferSchema = "true", 
+				na.strings = "")
+
+# Check the dimensions of the dataframe
+dim(tendulkar1)
+```
+
+##2a. Data frame shape - R
+
+```{r}
+# Get the shape of the dataframe in R
+dim(tendulkar)
+```
+
+## 2b. Dataframe shape - SparkR
+The same 'dim' command works in SparkR too!
+
+```{r}
+dim(tendulkar1)
+```
+
+##3a . Dataframe columns - R
+
+```{r}
+# Get the nsma
+names(tendulkar) # Also colnames(tendulkar)
+```
+
+## 3b. Dataframe columns - SparkR
+
+```{r}
+names(tendulkar1)
+```
+
+## 4a. Rename columns - R
+
+```{r}
+names(tendulkar)=c('Runs','Minutes','BallsFaced','Fours','Sixes','StrikeRate','Position','Dismissal','Innings','Opposition','Ground','StartDate')
+names(tendulkar)
+```
+
+##4b. Rename columns - R
+
+```{r}
+names(tendulkar1)=c('Runs','Minutes','BallsFaced','Fours','Sixes','StrikeRate','Position','Dismissal','Innings','Opposition','Ground','StartDate')
+names(tendulkar1)
+```
+
+##5a.  Summary - R
+
+```{r}
+summary(tendulkar)
+```
+
+##5b.  Summary - SparkR
+
+```{r}
+summary(tendulkar1)
+```
+
+##6a. Displaying details of dataframe with str() - R
+
+```{r}
+str(tendulkar)
+```
+
+##6b. Displaying details of dataframe with str() - SparkR
+
+```{r}
+str(tendulkar1)
+```
+
+##7a.  Head & tail -R
+
+```{r}
+print(head(tendulkar),3)
+print(tail(tendulkar),3)
+```
+
+##7b. Head  - SparkR
+
+```{r}
+head(tendulkar1,3)
+
+```
+
+##8a. Determining the column types with sapply -R
+
+```{r}
+sapply(tendulkar,class)
+```
+
+##8b. Determining the column types with printSchema - SparkR
+
+```{r}
+printSchema(tendulkar1)
+```
+
+##9a.  Selecting columns - R
+
+```{r}
+library(dplyr)
+select(tendulkar,Runs,BallsFaced,Minutes)
+```
+
+##9b. Selecting columns - SparkR
+
+```{r}
+library(SparkR)
+Sys.setenv(SPARK_HOME="/usr/hdp/2.6.0.3-8/spark")
+.libPaths(c(file.path(Sys.getenv("SPARK_HOME"), "R", "lib"), .libPaths()))
+# Initiate a SparkR session
+sparkR.session()
+tendulkar1 <- read.df("/FileStore/tables/tendulkar.csv", 
+				header = "true", 
+				delimiter = ",", 
+				source = "csv", 
+				inferSchema = "true", 
+				na.strings = "")
+df=SparkR::select(tendulkar1, "Runs", "BF","Mins")
+head(SparkR::collect(df))
+```
+
+##10a.  Filter rows by criteria - R
+
+```{r}
+library(dplyr)
+df=tendulkar %>% filter(Runs > 50)
+head(df,5)
+```
+
+##10b.  Filter rows by criteria - SparkR
+
+```{r}
+df=SparkR::filter(tendulkar1, tendulkar1$Runs > 50)
+head(SparkR::collect(df))
+```
+
+##11a. Unique values -R
+
+```{r}
+
+unique(tendulkar$Runs)
+```
+
+##11b. Unique values - SparkR
+
+```{r}
+
+head(SparkR::distinct(tendulkar1[,"Runs"]),5)
+```
+
+##12a. Aggregate - Mean, min and max - R
+
+```{r}
+library(dplyr)
+library(magrittr)
+a <- tendulkar$Runs != "DNB"
+tendulkar <- tendulkar[a,]
+dim(tendulkar)
+
+# Remove rows with 'TDNB'
+c <- tendulkar$Runs != "TDNB"
+tendulkar <- tendulkar[c,]
+
+# Remove rows with absent
+d <- tendulkar$Runs != "absent"
+tendulkar <- tendulkar[d,]
+dim(tendulkar)
+
+# Remove the "* indicating not out
+tendulkar$Runs <- as.numeric(gsub("\\*","",tendulkar$Runs))
+c <- complete.cases(tendulkar)
+
+#Subset the rows which are complete
+tendulkar <- tendulkar[c,]
+print(dim(tendulkar))
+df <-tendulkar %>%  group_by(Ground) %>% summarise(meanRuns= mean(Runs), minRuns=min(Runs), maxRuns=max(Runs)) 
+#names(tendulkar)
+head(df)
+```
+
+##12b. Aggregate- Mean, Min, Max
+
+```{r}
+sparkR.session()
+
+tendulkar1 <- read.df("/FileStore/tables/tendulkar.csv", 
+				header = "true", 
+				delimiter = ",", 
+				source = "csv", 
+				inferSchema = "true", 
+				na.strings = "")
+
+print(dim(tendulkar1))
+tendulkar1 <-SparkR::filter(tendulkar1,tendulkar1$Runs != "DNB")
+print(dim(tendulkar1))
+tendulkar1<-SparkR::filter(tendulkar1,tendulkar1$Runs != "TDNB")
+print(dim(tendulkar1))
+tendulkar1<-SparkR::filter(tendulkar1,tendulkar1$Runs != "absent")
+print(dim(tendulkar1))
+
+# Cast the string type Runs to double
+withColumn(tendulkar1, "Runs", cast(tendulkar1$Runs, "double"))
+head(SparkR::distinct(tendulkar1[,"Runs"]),20)
+# Remove the "* indicating not out
+tendulkar1$Runs=SparkR::regexp_replace(tendulkar1$Runs, "\\*", "")
+head(SparkR::distinct(tendulkar1[,"Runs"]),20)
+df=SparkR::summarize(SparkR::groupBy(tendulkar1, tendulkar1$Ground), mean = mean(tendulkar1$Runs), minRuns=min(tendulkar1$Runs),maxRuns=max(tendulkar1$Runs))
+head(df,20)
+```
+
+## Using SQL with S
+
+```{r}
+sparkR.session()
+tendulkar1 <- read.df("/FileStore/tables/tendulkar.csv", 
+				header = "true", 
+				delimiter = ",", 
+				source = "csv", 
+				inferSchema = "true", 
+				na.strings = "")
+
+# Register this SparkDataFrame as a temporary view.
+createOrReplaceTempView(tendulkar1, "tendulkar2")
+
+# SQL statements can be run by using the sql method
+df=SparkR::sql("SELECT * FROM tendulkar2 WHERE Ground='Karachi'")
+
+head(df)
+
+```
+
+# Conclusion
+This post discusses some of the key constructs in R and SparkR and how one can transition from R to SparkR fairly easily. I will be adding more constructs 
+later. Do check back!
